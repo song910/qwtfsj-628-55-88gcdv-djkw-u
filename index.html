@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>抖音二维码生成器 + 中间页跳转</title>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <style>
+        body {
+            text-align: center;
+            font-family: "Microsoft YaHei", sans-serif;
+            margin-top: 50px;
+            background: #f5f5f5;
+        }
+        .box {
+            background: white;
+            width: 420px;
+            margin: 0 auto;
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        input {
+            width: 80%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        button {
+            background: #1e6eff;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 30px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0050d0;
+        }
+        #qrcode {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 12px;
+            border: 1px solid #eee;
+            min-height: 100px;
+            min-width: 100px;
+        }
+        .tip {
+            font-size: 13px;
+            color: #888;
+            margin-top: 15px;
+            text-align: left;
+            background: #f9f9f9;
+            padding: 10px;
+            border-radius: 8px;
+        }
+        .tip b {
+            color: #ff4d4f;
+        }
+        #middle-page {
+            display: none;
+        }
+        #middle-page .spinner {
+            font-size: 40px;
+            margin: 20px 0;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ================= 二维码生成器界面 ================= -->
+    <div id="generator-page" class="box">
+        <h2>📱 抖音二维码生成器</h2>
+        <p style="color:#888;font-size:14px;">输入作品链接，生成中间页二维码</p>
+
+        <input id="videoUrl" type="text" placeholder="粘贴抖音作品链接" value="https://www.douyin.com/video/738876543211234" />
+        <br>
+        <button onclick="generateQR()">✨ 生成二维码</button>
+
+        <div id="qrcode"></div>
+
+        <div class="tip">
+            <b>📌 说明：</b><br>
+            1. 二维码内容 = 当前页面地址 + 中间页参数 + 你的作品链接。<br>
+            2. 扫码后先打开<strong>中间页</strong>，再由中间页自动唤起抖音App。<br>
+            3. 请把此HTML文件托管到服务器（如GitHub Pages、Netlify），否则手机无法访问。<br>
+            4. 微信内扫码可能被拦截，请用<strong>手机系统相机</strong>扫码。
+        </div>
+    </div>
+
+    <!-- ================= 中间页界面 ================= -->
+    <div id="middle-page" class="box">
+        <h2>🔄 正在跳转...</h2>
+        <div class="spinner">⏳</div>
+        <p style="color:#888;font-size:14px;">正在打开抖音，请稍候</p>
+        <button onclick="openDouyinApp()">🚀 手动打开抖音</button>
+        <div class="tip" style="margin-top:20px;">
+            <b>📌 如果无法跳转：</b><br>
+            1. 请确认已安装抖音App。<br>
+            2. 部分系统需手动点击上方按钮。<br>
+            3. 微信内无法跳转，请用系统浏览器打开。
+        </div>
+    </div>
+
+    <script>
+        // ================= 全局变量 =================
+        var baseUrl = window.location.origin + window.location.pathname;
+        var urlParams = new URLSearchParams(window.location.search);
+        var action = urlParams.get('action');
+        var targetUrl = urlParams.get('target');
+
+        // ================= 判断是否为中间页模式 =================
+        if (action === 'go') {
+            // 隐藏生成器，显示中间页
+            document.getElementById('generator-page').style.display = 'none';
+            document.getElementById('middle-page').style.display = 'block';
+
+            // 延迟500毫秒后自动尝试跳转（给页面渲染留时间）
+            setTimeout(function () {
+                openDouyinApp();
+            }, 500);
+        }
+
+        // ================= 生成二维码 =================
+        function generateQR() {
+            var text = document.getElementById('videoUrl').value.trim();
+            if (!text) {
+                alert('请先粘贴有效的抖音作品链接！');
+                return;
+            }
+
+            // 二维码内容：当前页面地址 + action=go + target=作品链接
+            var qrContent = baseUrl + '?action=go&target=' + encodeURIComponent(text);
+
+            document.getElementById('qrcode').innerHTML = '';
+            new QRCode(document.getElementById('qrcode'), {
+                text: qrContent,
+                width: 280,
+                height: 280,
+                colorDark: "#000000",
+                colorLight: "#ffffff"
+            });
+        }
+
+        // ================= 中间页跳转逻辑 =================
+        function openDouyinApp() {
+            // 重新读取参数（防止页面刷新后参数丢失）
+            var params = new URLSearchParams(window.location.search);
+            var target = params.get('target');
+
+            // 方案A：如果传入了有效的抖音链接，尝试打开对应内容
+            if (target && target.indexOf('douyin.com') > -1) {
+                var videoId = extractVideoId(target);
+                if (videoId) {
+                    // 用抖音App的Scheme直接打开视频详情页
+                    window.location.href = 'snssdk1128://aweme/detail/' + videoId;
+                } else {
+                    // 短链或其他形式，直接用通用链接（系统会自动唤起App）
+                    window.location.href = target;
+                }
+            } else {
+                // 方案B：没有有效目标时，直接打开抖音首页（推荐页）
+                window.location.href = 'snssdk1128://feed?refer=web';
+            }
+
+            // 降级处理：2秒后仍在当前页，说明未安装抖音
+            setTimeout(function () {
+                // 可以在这里显示下载引导
+                // window.location.href = 'https://www.douyin.com/download';
+            }, 2000);
+        }
+
+        // ================= 从链接中提取视频ID =================
+        function extractVideoId(url) {
+            // 匹配 https://www.douyin.com/video/738876543211234
+            var match = url.match(/\/video\/(\d+)/);
+            if (match) return match[1];
+            // 短链需要服务器端解析，前端无法直接提取，返回null
+            return null;
+        }
+
+        // ================= 页面加载 =================
+        window.onload = function () {
+            // 仅当处于生成器模式时，自动生成一次示例二维码
+            if (action !== 'go') {
+                generateQR();
+            }
+        };
+    </script>
+</body>
+</html>
