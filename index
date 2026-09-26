@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>抖音二维码生成器（密码+时效）</title>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <style>
+        body { text-align: center; font-family: "Microsoft YaHei", sans-serif; margin-top: 50px; background: #f5f5f5; }
+        .box { background: white; width: 420px; margin: 0 auto; padding: 30px; border-radius: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        input { width: 80%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+        select { padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+        button { background: #1e6eff; color: white; border: none; padding: 12px 30px; border-radius: 30px; font-size: 16px; cursor: pointer; }
+        button:hover { background: #0050d0; }
+        #qrcode { display: inline-block; margin-top: 20px; padding: 15px; background: white; border-radius: 12px; border: 1px solid #eee; }
+        #middle-page { display: none; }
+        .tip { font-size: 13px; color: #888; margin-top: 15px; text-align: left; background: #f9f9f9; padding: 10px; border-radius: 8px; }
+        .tip b { color: #ff4d4f; }
+    </style>
+</head>
+<body>
+
+    <!-- 1. 密码保护 (位于最前面，阻止未授权访问) -->
+    <script>
+        // ⚠️ 这里修改密码
+        var correctPassword = "QQ-927712qq"; 
+        var userInput = prompt("🔒 请输入访问密码：");
+        if (userInput !== correctPassword) {
+            document.body.innerHTML = "<div style='text-align:center;margin-top:100px;font-size:20px;color:red;'>❌ 密码错误，无权访问！</div>";
+            window.stop(); // 停止加载后面的所有内容
+        }
+    </script>
+
+    <!-- 2. 生成器界面 -->
+    <div id="generator-page" class="box">
+        <h2>📱 抖音二维码生成器</h2>
+        <p style="color:#888;font-size:14px;">带密码和时效的安全版</p>
+        
+        <input id="videoUrl" type="text" value="https://www.douyin.com/video/738876543211234" placeholder="粘贴抖音作品链接" />
+        <br>
+        <label style="font-size:14px;color:#333;display:block;margin:10px 0;">二维码有效期：
+            <select id="expireHours">
+                <option value="1">1小时</option>
+                <option value="24" selected>1天</option>
+                <option value="168">7天</option>
+                <option value="720">30天</option>
+            </select>
+        </label>
+        <br>
+        <button onclick="generateQR()">✨ 生成二维码</button>
+        <div id="qrcode"></div>
+        
+        <div class="tip">
+            <b>📌 说明：</b><br>
+            1. 生成的二维码带有时间限制。<br>
+            2. 过期后扫码会提示“已过期”。<br>
+            3. 请用抖音App或手机相机扫码。
+        </div>
+    </div>
+
+    <!-- 3. 中间页界面（扫码后进入这里） -->
+    <div id="middle-page" class="box">
+        <h2>🔄 正在跳转...</h2>
+        <p style="color:#888;font-size:14px;">正在打开抖音，请稍候</p>
+        <button onclick="openDouyinApp()">🚀 手动打开抖音</button>
+        <div class="tip" style="margin-top:20px;">
+            <b>📌 如果无法跳转：</b><br>
+            1. 请确认已安装抖音App。<br>
+            2. 部分系统需手动点击上方按钮。
+        </div>
+    </div>
+
+    <script>
+        var baseUrl = window.location.origin + window.location.pathname;
+        var urlParams = new URLSearchParams(window.location.search);
+        var action = urlParams.get('action');
+
+        // 4. 核心逻辑：判断二维码是否过期
+        if (action === 'go') {
+            var expireTime = urlParams.get('expires');
+            var now = Date.now();
+            
+            // 如果有过期时间参数，且当前时间大于过期时间，则拦截
+            if (expireTime && now > parseInt(expireTime)) {
+                document.body.innerHTML = "<div style='text-align:center;margin-top:100px;font-size:24px;color:red;font-weight:bold;'>⏰ 二维码已过期</div><p style='color:#888;'>请重新生成新的二维码</p>";
+                // 阻止后面的跳转逻辑
+                throw new Error("QR Code Expired");
+            } else {
+                // 未过期，正常显示中间页并跳转
+                document.getElementById('generator-page').style.display = 'none';
+                document.getElementById('middle-page').style.display = 'block';
+                setTimeout(function () { openDouyinApp(); }, 500);
+            }
+        }
+
+        // 5. 生成二维码
+        function generateQR() {
+            var text = document.getElementById('videoUrl').value.trim();
+            if (!text) { alert('请先粘贴有效的抖音作品链接！'); return; }
+            
+            var hours = document.getElementById('expireHours').value;
+            var expires = Date.now() + (hours * 60 * 60 * 1000); // 计算精确的过期时间戳
+
+            // 二维码内容：当前网址 + 动作参数 + 目标链接 + 过期时间戳
+            var qrContent = baseUrl + '?action=go&target=' + encodeURIComponent(text) + '&expires=' + expires;
+            
+            document.getElementById('qrcode').innerHTML = '';
+            new QRCode(document.getElementById('qrcode'), { text: qrContent, width: 280, height: 280 });
+        }
+
+        // 6. 跳转逻辑
+        function openDouyinApp() {
+            var target = urlParams.get('target');
+            if (target && target.indexOf('douyin.com') > -1) {
+                var videoId = target.match(/\/video\/(\d+)/);
+                if (videoId) { window.location.href = 'snssdk1128://aweme/detail/' + videoId[1]; }
+                else { window.location.href = target; }
+            } else {
+                window.location.href = 'snssdk1128://feed?refer=web';
+            }
+        }
+
+        // 页面加载初始化
+        window.onload = function () { if (action !== 'go') { generateQR(); } };
+    </script>
+</body>
+</html>
